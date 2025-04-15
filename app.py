@@ -5,16 +5,16 @@ import pandas as pd
 from datetime import date
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Google Sheets connection
+# Connect to Google Sheet using Streamlit secrets
 def connect_to_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDS"])
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
-    sheet = client.open("Salary_Advance_Tracker")  # Change this to your actual sheet name
+    sheet = client.open("Salary_Advance_Tracker")  # Change to your actual Sheet name
     return sheet.worksheet("master_data")
 
-# Login
+# Login (simple)
 def login():
     st.sidebar.title("Login")
     user = st.sidebar.text_input("Username")
@@ -23,9 +23,12 @@ def login():
 
 # Dashboard view
 def show_dashboard(sheet):
-    st.title("Salary & Advance Dashboard")
-    df = pd.DataFrame(sheet.get_all_records())
-    st.dataframe(df)
+    st.title("Employee Salary Dashboard")
+    try:
+        df = pd.DataFrame(sheet.get_all_records())
+        st.dataframe(df)
+    except Exception as e:
+        st.error(f"Failed to fetch data: {e}")
 
 # Advance entry form
 def add_advance(sheet):
@@ -36,25 +39,32 @@ def add_advance(sheet):
     adv_date = st.date_input("Advance Date", value=date.today())
 
     if st.button("Submit"):
-        # Append to the next row in master_data (you can customize)
-        new_row = [emp_name, "", "", "", "", adv_amount, str(adv_date), "", "", "", "Advance Added"]
-        sheet.append_row(new_row)
-        st.success("Advance submitted successfully!")
+        try:
+            new_row = [emp_name, "", "", "", "", adv_amount, str(adv_date), "", "", "", "Advance Added"]
+            sheet.append_row(new_row)
+            st.success("Advance submitted successfully!")
+        except Exception as e:
+            st.error(f"Error submitting advance: {e}")
 
-# App Main
+# Main App
 def main():
     st.set_page_config(page_title="Salary Advance Tracker", layout="wide")
+    st.write("App loaded...")  # Debug line to confirm app renders
 
     if login():
-        sheet = connect_to_sheet()
-        menu = st.sidebar.radio("Menu", ["Dashboard", "Add Advance"])
+        st.success("Login successful!")
+        try:
+            sheet = connect_to_sheet()
+            menu = st.sidebar.radio("Menu", ["Dashboard", "Add Advance"])
 
-        if menu == "Dashboard":
-            show_dashboard(sheet)
-        elif menu == "Add Advance":
-            add_advance(sheet)
+            if menu == "Dashboard":
+                show_dashboard(sheet)
+            elif menu == "Add Advance":
+                add_advance(sheet)
+        except Exception as e:
+            st.error(f"Error loading sheet: {e}")
     else:
-        st.warning("Please enter valid credentials.")
+        st.info("Please login using 'admin' / '1234'")
 
 if __name__ == "_main_":
     main()
