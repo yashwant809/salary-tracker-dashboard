@@ -66,5 +66,5 @@ def main():
     else:
         st.info("Please login using 'admin' / '1234'")
 
-if __name__ == "_main_":
+if __name__ == "__main__":
     main()
