@@ -56,5 +56,5 @@ def main():
     else:
         st.warning("Please enter valid credentials.")
 
-if _name_ == "_main_":
+if __name__ == "_main_":
     main()
