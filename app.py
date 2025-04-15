@@ -1,57 +1,60 @@
-# app.py
 import streamlit as st
-import pandas as pd
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import json
+import pandas as pd
 from datetime import date
+from oauth2client.service_account import ServiceAccountCredentials
 
-# Authenticate Google Sheets
-def get_sheet():
+# Google Sheets connection
+def connect_to_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    creds_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDS"])
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
-    sheet = client.open("Your Google Sheet Name")  # Replace with actual name
+    sheet = client.open("Salary_Advance_Tracker")  # Change this to your actual sheet name
     return sheet.worksheet("master_data")
 
-# Login (simple demo login)
+# Login
 def login():
     st.sidebar.title("Login")
     user = st.sidebar.text_input("Username")
     pwd = st.sidebar.text_input("Password", type="password")
-    if user == "admin" and pwd == "1234":
-        return True
-    else:
-        return False
+    return user == "admin" and pwd == "1234"
 
-# Dashboard display
+# Dashboard view
 def show_dashboard(sheet):
-    st.title("Employee Salary Dashboard")
+    st.title("Salary & Advance Dashboard")
     df = pd.DataFrame(sheet.get_all_records())
     st.dataframe(df)
 
-# Advance Entry
+# Advance entry form
 def add_advance(sheet):
-    st.header("Add Advance Entry")
-    name = st.text_input("Employee Name")
-    adv = st.number_input("Advance Amount", min_value=0.0)
+    st.title("Add Advance Entry")
+
+    emp_name = st.text_input("Employee Name")
+    adv_amount = st.number_input("Advance Amount", min_value=0.0, step=100.0)
     adv_date = st.date_input("Advance Date", value=date.today())
 
-    if st.button("Submit Advance"):
-        # Append a new row (you may customize logic to match columns)
-        sheet.append_row([name, "", "", "", "", adv, str(adv_date), "", "", "", "Advance added"])
-        st.success("Advance recorded!")
+    if st.button("Submit"):
+        # Append to the next row in master_data (you can customize)
+        new_row = [emp_name, "", "", "", "", adv_amount, str(adv_date), "", "", "", "Advance Added"]
+        sheet.append_row(new_row)
+        st.success("Advance submitted successfully!")
 
-# Main function
+# App Main
 def main():
+    st.set_page_config(page_title="Salary Advance Tracker", layout="wide")
+
     if login():
-        sheet = get_sheet()
-        option = st.sidebar.radio("Navigation", ["Dashboard", "Add Advance"])
-        if option == "Dashboard":
+        sheet = connect_to_sheet()
+        menu = st.sidebar.radio("Menu", ["Dashboard", "Add Advance"])
+
+        if menu == "Dashboard":
             show_dashboard(sheet)
-        elif option == "Add Advance":
+        elif menu == "Add Advance":
             add_advance(sheet)
     else:
-        st.warning("Enter correct credentials")
+        st.warning("Please enter valid credentials.")
 
-if __name__ == "_main_":
+if _name_ == "_main_":
     main()
