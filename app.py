@@ -113,6 +113,14 @@ def payroll_dashboard():
         st.error("Missing 'Emp Name' in sheet columns")
         return
 
+    # Validate required column
+    required_column = 'Emp Name'
+    if required_column not in emp_master.columns or required_column not in payroll_input.columns:
+        st.error(f"Missing '{required_column}' column in master or payroll sheet.")
+        st.write("emp_master columns:", emp_master.columns.tolist())
+        st.write("payroll_input columns:", payroll_input.columns.tolist())
+        st.stop()
+
     payroll = payroll_input.merge(emp_master, on='Emp Name', how='left')
     payroll['Per Day Salary'] = payroll['Net Salary PM'] / 30
     payroll['Monthly Salary'] = payroll['Per Day Salary'] * payroll['Working Days']
