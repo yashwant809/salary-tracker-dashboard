@@ -96,36 +96,6 @@ def generate_excel(payroll, month):
         writer.close()
     return output.getvalue()
 
-# Admin Section: Add/Delete Employees
-def admin_controls():
-    st.subheader("Admin Controls")
-    tab1, tab2 = st.tabs(["Add Employee", "Delete Employee"])
-
-    with tab1:
-        st.markdown("### Add New Employee")
-        emp = st.text_input("Employee Name")
-        doj = st.date_input("Date of Joining", date.today())
-        grp = st.text_input("Group")
-        dept = st.text_input("Department")
-        area = st.text_input("Area")
-        net_sal = st.number_input("Net Salary PM", min_value=0)
-        if st.button("Add Employee"):
-            sheet = connect_to_sheet("Salary_Advance_Tracker", "master_data")
-            sheet.append_row([emp, doj.strftime('%Y-%m-%d'), grp, dept, area, net_sal])
-            st.success("Employee added successfully!")
-
-    with tab2:
-        st.markdown("### Delete Employee")
-        emp_master = load_employee_master()
-        emp_list = emp_master['Emp Name'].tolist()
-        emp_to_delete = st.selectbox("Select Employee", emp_list)
-        if st.button("Delete Employee"):
-            sheet = connect_to_sheet("Salary_Advance_Tracker", "master_data")
-            cell = sheet.find(emp_to_delete)
-            if cell:
-                sheet.delete_rows(cell.row)
-                st.success(f"Deleted {emp_to_delete}")
-
 # Main Dashboard
 def payroll_dashboard():
     st.title("Payroll Dashboard")
@@ -135,9 +105,13 @@ def payroll_dashboard():
     advances = load_advance_data()
     payroll_input = load_payroll_input(month)
 
+    if emp_master.empty or payroll_input.empty:
+        st.error("Missing or empty sheet data.")
+        return
+
     if 'Emp Name' not in emp_master.columns or 'Emp Name' not in payroll_input.columns:
-        st.error("Missing 'Emp Name' column in either master_data or payroll_input sheet.")
-        st.stop()
+        st.error("Missing 'Emp Name' in sheet columns")
+        return
 
     payroll = payroll_input.merge(emp_master, on='Emp Name', how='left')
     payroll['Per Day Salary'] = payroll['Net Salary PM'] / 30
@@ -146,12 +120,21 @@ def payroll_dashboard():
     payroll['Remaining Advance'] = payroll['Remaining Advance'].fillna(0)
     payroll['Final Payable'] = payroll['Monthly Salary'] - payroll['Remaining Advance']
 
-    st.markdown("### Full Payroll Report")
-    search = st.text_input("Search by Employee Name")
-    if search:
-        payroll = payroll[payroll['Emp Name'].str.contains(search, case=False)]
-
     st.dataframe(payroll[['Emp Name', 'Area', 'Group', 'Department', 'Monthly Salary', 'Remaining Advance', 'Final Payable']])
+
+    # Store report in Google Sheet tab
+    try:
+        client = gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(json.loads(st.secrets["GOOGLE_SHEETS_CREDS"]), ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]))
+        spreadsheet = client.open("Salary_Advance_Tracker")
+        try:
+            worksheet = spreadsheet.worksheet(month)
+            spreadsheet.del_worksheet(worksheet)
+        except:
+            pass
+        new_ws = spreadsheet.add_worksheet(title=month, rows="100", cols="20")
+        new_ws.update([payroll.columns.values.tolist()] + payroll.values.tolist())
+    except Exception as e:
+        st.warning(f"Failed to update Google Sheet for {month}: {e}")
 
     pdf_data = generate_pdf(payroll, month)
     st.download_button("Download Payroll PDF", data=pdf_data, file_name=f"Payroll_{month}.pdf", mime="application/pdf")
@@ -159,45 +142,14 @@ def payroll_dashboard():
     excel_data = generate_excel(payroll, month)
     st.download_button("Download Payroll Excel", data=excel_data, file_name=f"Payroll_{month}.xlsx", mime="application/vnd.ms-excel")
 
-# Secure Login with Role-based Access
-def login():
-    if 'logged_in' not in st.session_state:
-        st.session_state.logged_in = False
-        st.session_state.username = ""
-        st.session_state.role = ""
+    st.markdown("### Export Employee-wise Report")
+    emp_selected = st.selectbox("Select employee for report", payroll['Emp Name'].unique())
+    emp_data = payroll[payroll['Emp Name'] == emp_selected]
+    st.dataframe(emp_data)
+    emp_pdf = generate_pdf(emp_data, month)
+    st.download_button("Download Employee PDF", data=emp_pdf, file_name=f"{emp_selected}_{month}.pdf", mime="application/pdf")
 
-    if st.session_state.logged_in:
-        st.sidebar.write(f"Logged in as: {st.session_state.username} ({st.session_state.role})")
-        if st.sidebar.button("Logout"):
-            log_activity(st.session_state.username, "Logout")
-            st.session_state.logged_in = False
-            st.session_state.username = ""
-            st.rerun()
-        return True
-    else:
-        st.sidebar.title("Login")
-        user = st.sidebar.text_input("Username")
-        pwd = st.sidebar.text_input("Password", type="password")
-        if st.sidebar.button("Login"):
-            if user in st.secrets["users"] and pwd == st.secrets["users"][user]["password"]:
-                st.session_state.logged_in = True
-                st.session_state.username = user
-                st.session_state.role = st.secrets["users"][user]["role"]
-                log_activity(user, "Login")
-                st.success("Login successful!")
-                st.rerun()
-            else:
-                st.error("Invalid credentials")
-        return False
-
-# Main Function
-def main():
-    st.set_page_config(page_title="Payroll Dashboard", layout="wide")
-    ensure_all_sheets()
-    if login():
-        payroll_dashboard()
-        if st.session_state.role == "admin":
-            admin_controls()
-
+# Main Execution
 if __name__ == "__main__":
-    main()
+    ensure_all_sheets()
+    payroll_dashboard()
