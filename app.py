@@ -33,7 +33,8 @@ def ensure_all_sheets():
 def load_employee_master():
     sheet = connect_to_sheet("Salary_Advance_Tracker", "master_data")
     data = pd.DataFrame(sheet.get_all_records())
-    data.columns = data.columns.str.strip()
+    if not data.empty:
+        data.columns = data.columns.astype(str).str.strip()
     return data
 
 def load_advance_data():
