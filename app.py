@@ -23,7 +23,10 @@ def login():
     st.sidebar.title("Login")
     user = st.sidebar.text_input("Username")
     pwd = st.sidebar.text_input("Password", type="password")
-    return user == "admin" and pwd == "1234"
+    if user in st.secrets["users"] and pwd == st.secrets["users"][user]:
+        st.session_state["username"] = user
+        return True
+    return False
 
 # Show Dashboard
 def show_dashboard(sheet):
