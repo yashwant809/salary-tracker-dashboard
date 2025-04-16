@@ -22,24 +22,24 @@ def connect_to_sheet(sheet_name, worksheet):
 
 # Load Data Functions
 def load_employee_master():
-    sheet = connect_to_sheet("Payroll_System", "employee_master")
+    sheet = connect_to_sheet("Salary_Advance_Tracker", "master_data")
     data = sheet.get_all_records()
     return pd.DataFrame(data)
 
 def load_advance_data():
-    sheet = connect_to_sheet("Payroll_System", "advance_data")
+    sheet = connect_to_sheet("Salary_Advance_Tracker", "advance_data")
     data = sheet.get_all_records()
     return pd.DataFrame(data)
 
 def load_payroll_input(month):
-    sheet = connect_to_sheet("Payroll_System", "payroll_input")
+    sheet = connect_to_sheet("Salary_Advance_Tracker", "payroll_input")
     data = pd.DataFrame(sheet.get_all_records())
     return data[data['Month'] == month]
 
 # Save login activity
 def log_activity(username, action):
     try:
-        sheet = connect_to_sheet("Payroll_System", "login_logs")
+        sheet = connect_to_sheet("Salary_Advance_Tracker", "login_logs")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sheet.append_row([username, action, timestamp])
     except:
