@@ -145,7 +145,7 @@ def login():
             log_activity(st.session_state.username, "Logout")
             st.session_state.logged_in = False
             st.session_state.username = ""
-            st.experimental_rerun()
+            st.rerun()
         return True
     else:
         st.sidebar.title("Login")
@@ -157,7 +157,7 @@ def login():
                 st.session_state.username = user
                 log_activity(user, "Login")
                 st.success("Login successful!")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Invalid credentials")
         return False
