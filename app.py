@@ -40,7 +40,8 @@ def load_employee_master():
 def load_advance_data():
     sheet = connect_to_sheet("Salary_Advance_Tracker", "advance_data")
     data = pd.DataFrame(sheet.get_all_records())
-    data.columns = data.columns.str.strip()
+    if not data.empty:
+        data.columns = data.columns.astype(str).str.strip()
     return data
 
 def load_payroll_input(month):
