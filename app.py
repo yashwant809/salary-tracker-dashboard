@@ -9,7 +9,7 @@ from fpdf import FPDF
 import plotly.express as px
 
 # Connect to Google Sheets
-def connect_to_sheet(sheet_name, worksheet):
+def connect_to_sheet(sheet_name, worksheet, headers=None):
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDS"])
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
@@ -18,22 +18,34 @@ def connect_to_sheet(sheet_name, worksheet):
         sheet = client.open(sheet_name).worksheet(worksheet)
     except gspread.exceptions.WorksheetNotFound:
         sheet = client.open(sheet_name).add_worksheet(title=worksheet, rows="100", cols="20")
+        if headers:
+            sheet.insert_row(headers, index=1)
     return sheet
+
+# Ensure all required sheets exist with headers
+def ensure_all_sheets():
+    connect_to_sheet("Salary_Advance_Tracker", "master_data", ["Emp Name", "DOJ", "Group", "Department", "Area", "Net Salary PM"])
+    connect_to_sheet("Salary_Advance_Tracker", "advance_data", ["Emp Name", "Advance Taken", "Advance Date", "Remaining Advance"])
+    connect_to_sheet("Salary_Advance_Tracker", "payroll_input", ["Month", "Emp Name", "Working Days"])
+    connect_to_sheet("Salary_Advance_Tracker", "login_logs", ["Username", "Action", "Timestamp"])
 
 # Load Data Functions
 def load_employee_master():
     sheet = connect_to_sheet("Salary_Advance_Tracker", "master_data")
-    data = sheet.get_all_records()
-    return pd.DataFrame(data)
+    data = pd.DataFrame(sheet.get_all_records())
+    data.columns = data.columns.str.strip()
+    return data
 
 def load_advance_data():
     sheet = connect_to_sheet("Salary_Advance_Tracker", "advance_data")
-    data = sheet.get_all_records()
-    return pd.DataFrame(data)
+    data = pd.DataFrame(sheet.get_all_records())
+    data.columns = data.columns.str.strip()
+    return data
 
 def load_payroll_input(month):
     sheet = connect_to_sheet("Salary_Advance_Tracker", "payroll_input")
     data = pd.DataFrame(sheet.get_all_records())
+    data.columns = data.columns.str.strip()
     if 'Month' not in data.columns:
         st.error("'Month' column not found in payroll_input sheet")
         return pd.DataFrame()
@@ -123,9 +135,9 @@ def payroll_dashboard():
     advances = load_advance_data()
     payroll_input = load_payroll_input(month)
 
-    if payroll_input.empty:
-        st.warning("No payroll input data for selected month or Month column missing.")
-        return
+    if 'Emp Name' not in emp_master.columns or 'Emp Name' not in payroll_input.columns:
+        st.error("Missing 'Emp Name' column in either master_data or payroll_input sheet.")
+        st.stop()
 
     payroll = payroll_input.merge(emp_master, on='Emp Name', how='left')
     payroll['Per Day Salary'] = payroll['Net Salary PM'] / 30
@@ -133,22 +145,6 @@ def payroll_dashboard():
     payroll = payroll.merge(advances[['Emp Name', 'Remaining Advance']], on='Emp Name', how='left')
     payroll['Remaining Advance'] = payroll['Remaining Advance'].fillna(0)
     payroll['Final Payable'] = payroll['Monthly Salary'] - payroll['Remaining Advance']
-
-    st.markdown("### Summary Charts")
-    fig1 = px.bar(payroll, x='Group', y='Final Payable', title='Group-wise Payable')
-    st.plotly_chart(fig1)
-
-    fig2 = px.bar(payroll, x='Area', y='Final Payable', title='Location-wise Payable')
-    st.plotly_chart(fig2)
-
-    st.markdown("### Employee Count Summary")
-    st.dataframe(emp_master.groupby('Group')['Emp Name'].count().reset_index(name='Count'))
-    st.dataframe(emp_master.groupby('Area')['Emp Name'].count().reset_index(name='Count'))
-
-    pending_advances = payroll[payroll['Remaining Advance'] > 0]
-    if not pending_advances.empty:
-        st.warning("Pending Advances Detected")
-        st.dataframe(pending_advances[['Emp Name', 'Remaining Advance']])
 
     st.markdown("### Full Payroll Report")
     search = st.text_input("Search by Employee Name")
@@ -197,6 +193,7 @@ def login():
 # Main Function
 def main():
     st.set_page_config(page_title="Payroll Dashboard", layout="wide")
+    ensure_all_sheets()
     if login():
         payroll_dashboard()
         if st.session_state.role == "admin":
